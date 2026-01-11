@@ -21,17 +21,22 @@ type Client struct {
 	meterID    string
 }
 
+// Discover creates a new CASA client with full auto-discovery.
+// Discovers the gateway via mDNS and the meter ID from available contracts.
+func Discover(user, password string) (*Client, error) {
+	return NewClient("", user, password, "", "")
+}
+
 // NewClient creates a new CASA client with HTTP digest authentication.
 //
 // Parameters:
-//   - uri: Gateway URI (http or https, e.g., "https://192.168.33.2")
+//   - uri: Gateway URI (empty to auto-discover via mDNS)
 //   - user: Username for digest authentication
 //   - password: Password for digest authentication
-//   - meterID: Meter ID to use (empty string to auto-discover from available contracts)
-//   - hostHeader: Custom Host header for routing (typically the gateway IP)
+//   - meterID: Meter ID (empty to auto-discover from available contracts)
+//   - hostHeader: Custom Host header for routing (empty to derive from URI)
 //
-// The client automatically discovers the meter ID if not provided.
-// Returns an error if credentials are missing or meter ID discovery fails.
+// Returns an error if credentials are missing or discovery/connection fails.
 func NewClient(uri, user, password, meterID, hostHeader string) (*Client, error) {
 	// Auto-discover gateway if URI is empty
 	if uri == "" {
