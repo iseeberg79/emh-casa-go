@@ -7,7 +7,7 @@ This library provides a clean, reusable interface for querying meter data from E
 ## Features
 
 - **HTTP Digest Authentication**: Secure communication with CASA gateways
-- **Auto-discovery**: Automatically discovers meter IDs from TAF-1 contracts
+- **Auto-discovery**: Automatically discovers meter IDs from available contracts
 - **OBIS Conversion**: Converts CASA logical names to standard OBIS C.D.E format
 - **Unit Handling**: Automatic scaling and unit conversion (W, Wh, A, V, Hz)
 - **Self-signed Certificates**: Works with typical CASA gateway configurations
@@ -91,7 +91,7 @@ values, err := client.GetMeterValues()
 // Get the configured meter ID
 meterID := client.MeterID()
 
-// Auto-discover meter ID from TAF-1 contracts
+// Auto-discover meter ID from available contracts
 err := client.DiscoverMeterID()
 ```
 
@@ -130,7 +130,7 @@ client, err := emhcasa.NewClient(
 
 ### Meter ID Auto-discovery
 
-If no meter ID is provided, the library automatically discovers the first TAF-1 contract:
+If no meter ID is provided, the library automatically discovers the first available contract:
 
 ```go
 // Meter ID auto-discovered
@@ -175,7 +175,7 @@ Original implementation: https://github.com/gosanman/smartmetergateway
 
 ### Meter Discovery Fails
 
-- Ensure the gateway has at least one TAF-1 contract configured
+- Ensure the gateway has at least one contract with sensor domains configured
 - Try providing the meter ID explicitly if known
 
 ### No Values Returned
