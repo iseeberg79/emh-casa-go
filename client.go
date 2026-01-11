@@ -26,7 +26,7 @@ type Client struct {
 //   - uri: Gateway URI (http or https, e.g., "https://192.168.33.2")
 //   - user: Username for digest authentication
 //   - password: Password for digest authentication
-//   - meterID: Meter ID to use (empty string to auto-discover from TAF-1 contracts)
+//   - meterID: Meter ID to use (empty string to auto-discover from available contracts)
 //   - hostHeader: Custom Host header for routing (typically the gateway IP)
 //
 // The client automatically discovers the meter ID if not provided.
@@ -86,9 +86,9 @@ func NewClient(uri, user, password, meterID, hostHeader string) (*Client, error)
 	return c, nil
 }
 
-// DiscoverMeterID finds the first TAF-1 contract and sets the client's meter ID.
+// DiscoverMeterID finds the first contract with sensor domains and sets the client's meter ID.
 // This is automatically called by NewClient if no meter ID is provided.
-// Returns an error if no TAF-1 contract is found.
+// Returns an error if no contract with sensor domains is found.
 func (c *Client) DiscoverMeterID() error {
 	var contracts []string
 	uri := fmt.Sprintf("%s/json/metering/derived", c.uri)
@@ -105,13 +105,13 @@ func (c *Client) DiscoverMeterID() error {
 			continue
 		}
 
-		if contract.TafType == "TAF-1" && len(contract.SensorDomains) > 0 {
+		if len(contract.SensorDomains) > 0 {
 			c.meterID = contract.SensorDomains[0]
 			return nil
 		}
 	}
 
-	return fmt.Errorf("no TAF-1 contract found")
+	return fmt.Errorf("no contract with sensor domains found")
 }
 
 // GetMeterValues fetches and parses current meter readings from the gateway.
