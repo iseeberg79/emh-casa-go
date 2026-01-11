@@ -21,9 +21,9 @@ type Client struct {
 	meterID    string
 }
 
-// Discover creates a new CASA client with full auto-discovery.
+// NewClientDiscover creates a new CASA client with full auto-discovery.
 // Discovers the gateway via mDNS and the meter ID from available contracts.
-func Discover(user, password string) (*Client, error) {
+func NewClientDiscover(user, password string) (*Client, error) {
 	return NewClient("", user, password, "", "")
 }
 

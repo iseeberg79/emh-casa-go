@@ -27,19 +27,13 @@ The library supports mDNS-based gateway discovery for networks where the gateway
 ```go
 import "github.com/iseeberg79/emh-casa-go"
 
-// Automatic discovery - both gateway URI and meter ID
-client, err := emhcasa.NewClient(
-    "",          // Empty URI triggers mDNS discovery
-    "admin",
-    "password",
-    "",          // Empty meter ID triggers contract discovery
-    "",          // Host header derived from discovered address
-)
+// Full auto-discovery with just credentials
+client, err := emhcasa.NewClientDiscover("admin", "password")
 if err != nil {
     log.Fatal(err)
 }
 
-// Now query meter values
+// Query meter values
 values, err := client.GetMeterValues()
 ```
 
@@ -85,7 +79,7 @@ client, err := emhcasa.NewClient(
 Or with full discovery + custom Host header:
 ```go
 // Auto-discover gateway URI via mDNS
-discoveredURI, err := emhcasa.DiscoverGatewayURI()
+discoveredURI, err := emhcasa.NewClientDiscoverGatewayURI()
 if err != nil {
     log.Fatal(err)
 }
@@ -162,13 +156,16 @@ func main() {
 ### Client
 
 ```go
-// Create a new CASA client
+// Full auto-discovery (recommended)
+client, err := emhcasa.NewClientDiscover(user, password)
+
+// Or with manual configuration
 client, err := emhcasa.NewClient(
-	uri,      // Gateway URI (http/https)
-	user,     // Username for digest auth
-	password, // Password for digest auth
-	meterID,  // Meter ID (empty to auto-discover)
-	hostHeader, // Host header for custom routing
+	uri,        // Gateway URI (empty for mDNS discovery)
+	user,       // Username for digest auth
+	password,   // Password for digest auth
+	meterID,    // Meter ID (empty to auto-discover)
+	hostHeader, // Host header (empty to derive from URI)
 )
 
 // Fetch all meter values (returns OBIS code -> value map)
@@ -176,9 +173,6 @@ values, err := client.GetMeterValues()
 
 // Get the configured meter ID
 meterID := client.MeterID()
-
-// Auto-discover meter ID from available contracts
-err := client.DiscoverMeterID()
 ```
 
 ## Common OBIS Codes
