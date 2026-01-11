@@ -37,6 +37,30 @@ func TestParseURIHost(t *testing.T) {
 			want:    "",
 			wantErr: true,
 		},
+		{
+			name:    "IPv6 link-local with zone",
+			uri:     "https://[fe80::dead:beef:cafe:babe%eth1]",
+			want:    "[fe80::dead:beef:cafe:babe%eth1]",
+			wantErr: false,
+		},
+		{
+			name:    "IPv6 with port",
+			uri:     "https://[fe80::1%eth0]:8080",
+			want:    "[fe80::1%eth0]",
+			wantErr: false,
+		},
+		{
+			name:    "IPv6 with path",
+			uri:     "https://[::1]/api/v1",
+			want:    "[::1]",
+			wantErr: false,
+		},
+		{
+			name:    "IPv6 without zone",
+			uri:     "https://[2001:db8::1]",
+			want:    "[2001:db8::1]",
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -182,14 +206,14 @@ func TestNewClient(t *testing.T) {
 		errSubstr string
 	}{
 		{
-			name:      "missing URI",
+			name:      "missing URI triggers discovery (will fail without gateway)",
 			uri:       "",
 			user:      "admin",
 			password:  "pass",
 			meterID:   "123",
 			host:      "192.168.1.1",
 			wantErr:   true,
-			errSubstr: "uri is required",
+			errSubstr: "failed to discover gateway",
 		},
 		{
 			name:      "missing username",

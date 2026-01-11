@@ -6,8 +6,9 @@ This library provides a clean, reusable interface for querying meter data from E
 
 ## Features
 
+- **Gateway Auto-discovery**: Automatically discovers CASA gateways via mDNS ("smgw.local")
 - **HTTP Digest Authentication**: Secure communication with CASA gateways
-- **Auto-discovery**: Automatically discovers meter IDs from available contracts
+- **Meter ID Auto-discovery**: Automatically discovers meter IDs from available contracts
 - **OBIS Conversion**: Converts CASA logical names to standard OBIS C.D.E format
 - **Unit Handling**: Automatic scaling and unit conversion (W, Wh, A, V, Hz)
 - **Self-signed Certificates**: Works with typical CASA gateway configurations
@@ -18,6 +19,91 @@ This library provides a clean, reusable interface for querying meter data from E
 ```bash
 go get github.com/iseeberg79/emh-casa-go
 ```
+
+## Automatic Gateway Discovery
+
+The library supports mDNS-based gateway discovery for networks where the gateway advertises itself as "smgw.local":
+
+```go
+import "github.com/iseeberg79/emh-casa-go"
+
+// Automatic discovery - both gateway URI and meter ID
+client, err := emhcasa.NewClient(
+    "",          // Empty URI triggers mDNS discovery
+    "admin",
+    "password",
+    "",          // Empty meter ID triggers contract discovery
+    "",          // Host header derived from discovered address
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Now query meter values
+values, err := client.GetMeterValues()
+```
+
+**Discovery behavior**:
+- Uses the proven `smgw-discover-go` module (tested with EMH CASA 1.1)
+- 300ms timeout for mDNS queries
+- Queries for "smgw.local" hostname
+- Works with IPv6 link-local addresses
+- Preserves network interface zone identifiers (e.g., `%eth1`)
+
+**Troubleshooting discovery**:
+- Ensure gateway is on the same network subnet
+- Verify gateway advertises "smgw.local" via mDNS (EMH CASA 1.1 does this by default)
+- Check that multicast DNS is enabled on your network interface
+- Some networks may block mDNS traffic - in this case, provide the URI manually
+
+**Manual configuration** (if discovery is not available):
+```go
+client, err := emhcasa.NewClient(
+    "https://192.168.33.2",  // Explicit URI
+    "admin",
+    "password",
+    "",     // Still auto-discovers meter ID
+    "",
+)
+```
+
+**SSH Tunneling and localhost forwarding**:
+
+When using SSH tunnels or port forwarding (e.g., gateway accessible via `localhost:8443` but needs routing to actual gateway IP), you can override the Host header:
+
+```go
+// Discover gateway address, but override Host header for SSH tunnel
+client, err := emhcasa.NewClient(
+    "https://localhost:8443",      // Local forwarded port
+    "admin",
+    "password",
+    "",                             // Auto-discover meter ID
+    "192.168.33.2",                 // Host header for gateway routing
+)
+```
+
+Or with full discovery + custom Host header:
+```go
+// Auto-discover gateway URI via mDNS
+discoveredURI, err := emhcasa.DiscoverGatewayURI()
+if err != nil {
+    log.Fatal(err)
+}
+
+// Use discovered URI to derive Host header, but connect via tunnel
+client, err := emhcasa.NewClient(
+    "https://localhost:8443",      // SSH tunnel endpoint
+    "admin",
+    "password",
+    "",                             // Auto-discover meter ID
+    discoveredURI,                  // Use discovered address as Host header
+)
+```
+
+This is useful when:
+- Gateway is accessed through SSH port forwarding
+- Using reverse proxy or load balancer
+- Gateway requires specific Host header for routing
 
 ## Quick Start
 

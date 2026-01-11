@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -32,8 +33,13 @@ type Client struct {
 // The client automatically discovers the meter ID if not provided.
 // Returns an error if credentials are missing or meter ID discovery fails.
 func NewClient(uri, user, password, meterID, hostHeader string) (*Client, error) {
+	// Auto-discover gateway if URI is empty
 	if uri == "" {
-		return nil, fmt.Errorf("uri is required")
+		discoveredURI, err := DiscoverGatewayURI()
+		if err != nil {
+			return nil, fmt.Errorf("failed to discover gateway: %w", err)
+		}
+		uri = discoveredURI
 	}
 
 	if user == "" || password == "" {
@@ -227,23 +233,27 @@ func convertToOBIS(logicalName string) (string, error) {
 	return fmt.Sprintf("%d.%d.%d", c, d, e), nil
 }
 
-// parseURIHost extracts the host from a URI
+// parseURIHost extracts the host from a URI using net/url
 func parseURIHost(uri string) (string, error) {
-	uri = strings.TrimPrefix(uri, "https://")
-	uri = strings.TrimPrefix(uri, "http://")
+	// IPv6 zone identifiers use % which must be URL-encoded for parsing
+	uri = strings.ReplaceAll(uri, "%", "%25")
 
-	if idx := strings.Index(uri, "/"); idx != -1 {
-		uri = uri[:idx]
-	}
-	if idx := strings.Index(uri, ":"); idx != -1 {
-		uri = uri[:idx]
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return "", fmt.Errorf("invalid uri: %w", err)
 	}
 
-	if uri == "" {
-		return "", fmt.Errorf("invalid uri")
+	hostname := parsed.Hostname()
+	if hostname == "" {
+		return "", fmt.Errorf("invalid uri: no host")
 	}
 
-	return uri, nil
+	// IPv6 addresses (contain :) need brackets in Host header
+	if strings.Contains(hostname, ":") {
+		return "[" + hostname + "]", nil
+	}
+
+	return hostname, nil
 }
 
 // defaultScheme adds a default scheme if missing
