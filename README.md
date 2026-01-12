@@ -66,10 +66,10 @@ When using SSH tunnels, set the Host header after creating the client:
 
 ```go
 client, err := emhcasa.NewClient(
-    "https://localhost:443",
+    "https://localhost:8443",
     "admin",
     "password",
-    "",
+    "",  // auto-discover meter ID
 )
 if err != nil {
     log.Fatal(err)
@@ -146,14 +146,13 @@ client, err := emhcasa.NewClient(
 	user,       // Username for digest auth
 	password,   // Password for digest auth
 	meterID,    // Meter ID (empty to auto-discover)
-	hostHeader, // Host header (empty to derive from URI)
 )
 
 // Fetch all meter values (returns OBIS code -> value map)
 values, err := client.GetMeterValues()
 
 // Get the configured meter ID
-meterID := client.MeterID()
+meterID, err := client.MeterID()
 ```
 
 ## Common OBIS Codes
@@ -177,16 +176,20 @@ meterID := client.MeterID()
 
 ### Host Header
 
-Most CASA gateways require a specific host header for routing. If not provided, the library attempts to derive it from the URI. For best results, explicitly specify the gateway's IP address:
-
+For SSH tunnels or when the gateway requires a specific host header, use `SetHostHeader()` after creating the client:
 ```go
 client, err := emhcasa.NewClient(
-	"https://casa.example.com",
+	"https://localhost:8443",
 	"user",
 	"pass",
-	"",
-	"192.168.33.2", // Required for most setups
+	"",  // auto-discover meter ID
 )
+if err != nil {
+	log.Fatal(err)
+}
+
+// Set custom Host header for gateway routing
+client.SetHostHeader("smgw.local")
 ```
 
 ### Meter ID Auto-discovery
@@ -195,10 +198,10 @@ If no meter ID is provided, the library automatically discovers the first availa
 
 ```go
 // Meter ID auto-discovered
-client, err := emhcasa.NewClient(uri, user, pass, "", host)
+client, err := emhcasa.NewClient(uri, user, pass, "")
 
 // Or explicitly provide it if known
-client, err := emhcasa.NewClient(uri, user, pass, "ABC123...", host)
+client, err := emhcasa.NewClient(uri, user, pass, "ABC123...")
 ```
 
 ## evcc Integration
