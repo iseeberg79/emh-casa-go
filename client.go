@@ -170,7 +170,7 @@ func (c *Client) GetMeterValues() (map[string]float64, error) {
 	return values, nil
 }
 
-// MeterID returns the configured meter ID or discoveres automatically.
+// MeterID returns the configured meter ID or discovers automatically.
 func (c *Client) MeterID() (string, error) {
 	// Discover meter ID if not provided
 	if c.meterID == "" {
