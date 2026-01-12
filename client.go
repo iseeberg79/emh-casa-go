@@ -8,7 +8,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 )
@@ -84,7 +83,7 @@ func NewClient(uri, user, password, meterID string) (*Client, error) {
 }
 
 // DiscoverMeterID finds the first contract with sensor domains and sets the client's meter ID.
-// This is automatically called by NewClient if no meter ID is provided.
+// This is automatically called by MeterID if no meter ID is provided.
 // Returns an error if no contract with sensor domains is found.
 func (c *Client) DiscoverMeterID() error {
 	var contracts []string
@@ -233,29 +232,6 @@ func convertToOBIS(logicalName string) (string, error) {
 	}
 
 	return fmt.Sprintf("%d.%d.%d", c, d, e), nil
-}
-
-// parseURIHost extracts the host from a URI using net/url
-func parseURIHost(uri string) (string, error) {
-	// IPv6 zone identifiers use % which must be URL-encoded for parsing
-	uri = strings.ReplaceAll(uri, "%", "%25")
-
-	parsed, err := url.Parse(uri)
-	if err != nil {
-		return "", fmt.Errorf("invalid uri: %w", err)
-	}
-
-	hostname := parsed.Hostname()
-	if hostname == "" {
-		return "", fmt.Errorf("invalid uri: no host")
-	}
-
-	// IPv6 addresses (contain :) need brackets in Host header
-	if strings.Contains(hostname, ":") {
-		return "[" + hostname + "]", nil
-	}
-
-	return hostname, nil
 }
 
 // defaultScheme adds a default scheme if missing
