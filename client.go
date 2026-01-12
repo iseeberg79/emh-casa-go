@@ -15,25 +15,36 @@ import (
 // Client is a CASA 1.1 smart meter gateway client.
 // It handles HTTP digest authentication, custom host headers, and meter data retrieval.
 type Client struct {
-	httpClient *http.Client
-	uri        string
-	meterID    string
+	httpClient    *http.Client
+	hostTransport *hostHeaderTransport
+	uri           string
+	meterID       string
+}
+
+// NewClientDiscover creates a new CASA client with full auto-discovery.
+// Discovers the gateway via mDNS and the meter ID from available contracts.
+func NewClientDiscover(user, password string) (*Client, error) {
+	return NewClient("", user, password, "")
 }
 
 // NewClient creates a new CASA client with HTTP digest authentication.
 //
 // Parameters:
-//   - uri: Gateway URI (http or https, e.g., "https://192.168.33.2")
+//   - uri: Gateway URI (empty to auto-discover via mDNS)
 //   - user: Username for digest authentication
 //   - password: Password for digest authentication
-//   - meterID: Meter ID to use (empty string to auto-discover from available contracts)
-//   - hostHeader: Custom Host header for routing (typically the gateway IP)
+//   - meterID: Meter ID (empty to auto-discover from available contracts)
 //
-// The client automatically discovers the meter ID if not provided.
-// Returns an error if credentials are missing or meter ID discovery fails.
-func NewClient(uri, user, password, meterID, hostHeader string) (*Client, error) {
+// For SSH tunnels, use SetHostHeader("smgw.local") after creating the client.
+// Returns an error if credentials are missing or discovery/connection fails.
+func NewClient(uri, user, password, meterID string) (*Client, error) {
+	// Auto-discover gateway if URI is empty
 	if uri == "" {
-		return nil, fmt.Errorf("uri is required")
+		discoveredURI, err := DiscoverGatewayURI()
+		if err != nil {
+			return nil, fmt.Errorf("failed to discover gateway: %w", err)
+		}
+		uri = discoveredURI
 	}
 
 	if user == "" || password == "" {
@@ -41,16 +52,6 @@ func NewClient(uri, user, password, meterID, hostHeader string) (*Client, error)
 	}
 
 	uri = defaultScheme(uri, "https")
-	host := hostHeader
-
-	// If no host provided, try to derive from URI
-	if host == "" {
-		derived, err := parseURIHost(uri)
-		if err != nil {
-			return nil, fmt.Errorf("host required and could not be derived: %w", err)
-		}
-		host = derived
-	}
 
 	// Create HTTP client with custom transport for self-signed certs
 	customTransport := &http.Transport{
@@ -60,9 +61,10 @@ func NewClient(uri, user, password, meterID, hostHeader string) (*Client, error)
 		ForceAttemptHTTP2: false,
 	}
 
+	// Create host header transport (can be modified later via SetHostHeader)
 	hostTransport := &hostHeaderTransport{
 		base: customTransport,
-		host: host,
+		host: "", // empty = use default from request
 	}
 
 	// Add digest authentication
@@ -71,23 +73,17 @@ func NewClient(uri, user, password, meterID, hostHeader string) (*Client, error)
 	}
 
 	c := &Client{
-		httpClient: httpClient,
-		uri:        uri,
-		meterID:    meterID,
-	}
-
-	// Discover meter ID if not provided
-	if c.meterID == "" {
-		if err := c.DiscoverMeterID(); err != nil {
-			return nil, fmt.Errorf("failed to discover meter ID: %w", err)
-		}
+		httpClient:    httpClient,
+		hostTransport: hostTransport,
+		uri:           uri,
+		meterID:       meterID,
 	}
 
 	return c, nil
 }
 
 // DiscoverMeterID finds the first contract with sensor domains and sets the client's meter ID.
-// This is automatically called by NewClient if no meter ID is provided.
+// This is automatically called by MeterID if no meter ID is provided.
 // Returns an error if no contract with sensor domains is found.
 func (c *Client) DiscoverMeterID() error {
 	var contracts []string
@@ -173,10 +169,21 @@ func (c *Client) GetMeterValues() (map[string]float64, error) {
 	return values, nil
 }
 
-// MeterID returns the currently configured meter ID.
-// This is set either explicitly during NewClient or discovered automatically.
-func (c *Client) MeterID() string {
-	return c.meterID
+// MeterID returns the configured meter ID or discovers automatically.
+func (c *Client) MeterID() (string, error) {
+	// Discover meter ID if not provided
+	if c.meterID == "" {
+		if err := c.DiscoverMeterID(); err != nil {
+			return "", fmt.Errorf("failed to discover meter ID: %w", err)
+		}
+	}
+	return c.meterID, nil
+}
+
+// SetHostHeader overrides the Host header for all requests.
+// Use this for SSH tunnels or proxies when the default doesn't work.
+func (c *Client) SetHostHeader(host string) {
+	c.hostTransport.host = host
 }
 
 // getJSON makes a JSON API call and unmarshals the response
@@ -225,25 +232,6 @@ func convertToOBIS(logicalName string) (string, error) {
 	}
 
 	return fmt.Sprintf("%d.%d.%d", c, d, e), nil
-}
-
-// parseURIHost extracts the host from a URI
-func parseURIHost(uri string) (string, error) {
-	uri = strings.TrimPrefix(uri, "https://")
-	uri = strings.TrimPrefix(uri, "http://")
-
-	if idx := strings.Index(uri, "/"); idx != -1 {
-		uri = uri[:idx]
-	}
-	if idx := strings.Index(uri, ":"); idx != -1 {
-		uri = uri[:idx]
-	}
-
-	if uri == "" {
-		return "", fmt.Errorf("invalid uri")
-	}
-
-	return uri, nil
 }
 
 // defaultScheme adds a default scheme if missing

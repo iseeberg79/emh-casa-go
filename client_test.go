@@ -5,54 +5,6 @@ import (
 	"testing"
 )
 
-// TestParseURIHost tests URI host extraction
-func TestParseURIHost(t *testing.T) {
-	tests := []struct {
-		name    string
-		uri     string
-		want    string
-		wantErr bool
-	}{
-		{
-			name:    "https with IP",
-			uri:     "https://192.168.33.2",
-			want:    "192.168.33.2",
-			wantErr: false,
-		},
-		{
-			name:    "https with IP and port",
-			uri:     "https://192.168.33.2:8443",
-			want:    "192.168.33.2",
-			wantErr: false,
-		},
-		{
-			name:    "http with host",
-			uri:     "http://casa.local",
-			want:    "casa.local",
-			wantErr: false,
-		},
-		{
-			name:    "empty URI",
-			uri:     "",
-			want:    "",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseURIHost(tt.uri)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parseURIHost() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("parseURIHost() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 // TestDefaultScheme tests scheme addition
 func TestDefaultScheme(t *testing.T) {
 	tests := []struct {
@@ -177,19 +129,17 @@ func TestNewClient(t *testing.T) {
 		user      string
 		password  string
 		meterID   string
-		host      string
 		wantErr   bool
 		errSubstr string
 	}{
 		{
-			name:      "missing URI",
+			name:      "missing URI triggers discovery (will fail without gateway)",
 			uri:       "",
 			user:      "admin",
 			password:  "pass",
 			meterID:   "123",
-			host:      "192.168.1.1",
 			wantErr:   true,
-			errSubstr: "uri is required",
+			errSubstr: "failed to discover gateway",
 		},
 		{
 			name:      "missing username",
@@ -197,7 +147,6 @@ func TestNewClient(t *testing.T) {
 			user:      "",
 			password:  "pass",
 			meterID:   "123",
-			host:      "192.168.1.1",
 			wantErr:   true,
 			errSubstr: "credentials are required",
 		},
@@ -207,7 +156,6 @@ func TestNewClient(t *testing.T) {
 			user:      "admin",
 			password:  "",
 			meterID:   "123",
-			host:      "192.168.1.1",
 			wantErr:   true,
 			errSubstr: "credentials are required",
 		},
@@ -215,7 +163,7 @@ func TestNewClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewClient(tt.uri, tt.user, tt.password, tt.meterID, tt.host)
+			_, err := NewClient(tt.uri, tt.user, tt.password, tt.meterID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewClient() error = %v, wantErr %v", err, tt.wantErr)
 				return

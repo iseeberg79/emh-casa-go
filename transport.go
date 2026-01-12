@@ -17,8 +17,11 @@ type hostHeaderTransport struct {
 // RoundTrip implements http.RoundTripper, enforcing the custom host header on each request.
 func (t *hostHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
-	req.Host = t.host
-	req.Header.Set("Host", t.host)
+	// Only override host if explicitly set
+	if t.host != "" {
+		req.Host = t.host
+		req.Header.Set("Host", t.host)
+	}
 	return t.base.RoundTrip(req)
 }
 

@@ -6,8 +6,9 @@ This library provides a clean, reusable interface for querying meter data from E
 
 ## Features
 
+- **Gateway Auto-discovery**: Automatically discovers CASA gateways via mDNS ("smgw.local")
 - **HTTP Digest Authentication**: Secure communication with CASA gateways
-- **Auto-discovery**: Automatically discovers meter IDs from available contracts
+- **Meter ID Auto-discovery**: Automatically discovers meter IDs from available contracts
 - **OBIS Conversion**: Converts CASA logical names to standard OBIS C.D.E format
 - **Unit Handling**: Automatic scaling and unit conversion (W, Wh, A, V, Hz)
 - **Self-signed Certificates**: Works with typical CASA gateway configurations
@@ -17,6 +18,67 @@ This library provides a clean, reusable interface for querying meter data from E
 
 ```bash
 go get github.com/iseeberg79/emh-casa-go
+```
+
+## Automatic Gateway Discovery
+
+The library supports mDNS-based gateway discovery for networks where the gateway advertises itself as "smgw.local":
+
+```go
+import "github.com/iseeberg79/emh-casa-go"
+
+// Full auto-discovery with just credentials
+client, err := emhcasa.NewClientDiscover("admin", "password")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Query meter values
+values, err := client.GetMeterValues()
+```
+
+**Discovery behavior**:
+- Uses the proven `smgw-discover-go` module (tested with EMH CASA 1.1)
+- 300ms timeout for mDNS queries
+- Queries for "smgw.local" hostname
+- Works with IPv6 link-local addresses
+- Preserves network interface zone identifiers (e.g., `%eth1`)
+
+**Troubleshooting discovery**:
+- Ensure gateway is on the same network subnet
+- Verify gateway advertises "smgw.local" via mDNS (EMH CASA 1.1 does this by default)
+- Check that multicast DNS is enabled on your network interface
+- Some networks may block mDNS traffic - in this case, provide the URI manually
+
+**Manual configuration** (if discovery is not available):
+```go
+client, err := emhcasa.NewClient(
+    "https://smgw.local",  // or IP address
+    "admin",
+    "password",
+    "",  // auto-discover meter ID
+)
+```
+
+**SSH Tunneling**:
+
+When using SSH tunnels, set the Host header after creating the client:
+
+```go
+client, err := emhcasa.NewClient(
+    "https://localhost:8443",
+    "admin",
+    "password",
+    "",  // auto-discover meter ID
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Set Host header for gateway routing
+client.SetHostHeader("smgw.local")  // or "192.168.33.2"
+
+values, err := client.GetMeterValues()
 ```
 
 ## Quick Start
@@ -34,11 +96,10 @@ import (
 func main() {
 	// Create a client
 	client, err := emhcasa.NewClient(
-		"https://192.168.33.2",    // CASA gateway URI
-		"admin",                     // Username
-		"password",                  // Password
-		"",                          // Meter ID (empty to auto-discover)
-		"192.168.33.2",             // Host header (required for most CASA gateways)
+		"https://smgw.local",  // CASA gateway URI
+		"admin",               // Username
+		"password",            // Password
+		"",                    // Meter ID (empty to auto-discover)
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -76,23 +137,22 @@ func main() {
 ### Client
 
 ```go
-// Create a new CASA client
+// Full auto-discovery (recommended)
+client, err := emhcasa.NewClientDiscover(user, password)
+
+// Or with manual configuration
 client, err := emhcasa.NewClient(
-	uri,      // Gateway URI (http/https)
-	user,     // Username for digest auth
-	password, // Password for digest auth
-	meterID,  // Meter ID (empty to auto-discover)
-	hostHeader, // Host header for custom routing
+	uri,        // Gateway URI (empty for mDNS discovery)
+	user,       // Username for digest auth
+	password,   // Password for digest auth
+	meterID,    // Meter ID (empty to auto-discover)
 )
 
 // Fetch all meter values (returns OBIS code -> value map)
 values, err := client.GetMeterValues()
 
 // Get the configured meter ID
-meterID := client.MeterID()
-
-// Auto-discover meter ID from available contracts
-err := client.DiscoverMeterID()
+meterID, err := client.MeterID()
 ```
 
 ## Common OBIS Codes
@@ -116,16 +176,20 @@ err := client.DiscoverMeterID()
 
 ### Host Header
 
-Most CASA gateways require a specific host header for routing. If not provided, the library attempts to derive it from the URI. For best results, explicitly specify the gateway's IP address:
-
+For SSH tunnels or when the gateway requires a specific host header, use `SetHostHeader()` after creating the client:
 ```go
 client, err := emhcasa.NewClient(
-	"https://casa.example.com",
+	"https://localhost:8443",
 	"user",
 	"pass",
-	"",
-	"192.168.33.2", // Required for most setups
+	"",  // auto-discover meter ID
 )
+if err != nil {
+	log.Fatal(err)
+}
+
+// Set custom Host header for gateway routing
+client.SetHostHeader("smgw.local")
 ```
 
 ### Meter ID Auto-discovery
@@ -134,10 +198,10 @@ If no meter ID is provided, the library automatically discovers the first availa
 
 ```go
 // Meter ID auto-discovered
-client, err := emhcasa.NewClient(uri, user, pass, "", host)
+client, err := emhcasa.NewClient(uri, user, pass, "")
 
 // Or explicitly provide it if known
-client, err := emhcasa.NewClient(uri, user, pass, "ABC123...", host)
+client, err := emhcasa.NewClient(uri, user, pass, "ABC123...")
 ```
 
 ## evcc Integration
@@ -190,6 +254,9 @@ This project is an independent, open-source library and is **not affiliated with
 
 This software is provided **“as is”**, without warranty of any kind, express or implied.  
 Use of this library is **at your own risk**.
+
+⚠️ **Note**: This library is pre-1.0.0.  
+Breaking API changes may occur between minor versions. See `CHANGELOG.md`.
 
 ---
 
