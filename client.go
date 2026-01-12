@@ -80,13 +80,6 @@ func NewClient(uri, user, password, meterID string) (*Client, error) {
 		meterID:       meterID,
 	}
 
-	// Discover meter ID if not provided
-	if c.meterID == "" {
-		if err := c.DiscoverMeterID(); err != nil {
-			return nil, fmt.Errorf("failed to discover meter ID: %w", err)
-		}
-	}
-
 	return c, nil
 }
 
@@ -177,14 +170,19 @@ func (c *Client) GetMeterValues() (map[string]float64, error) {
 	return values, nil
 }
 
-// MeterID returns the currently configured meter ID.
-// This is set either explicitly during NewClient or discovered automatically.
-func (c *Client) MeterID() string {
-	return c.meterID
+// MeterID returns the configured meter ID or discoveres automatically.
+func (c *Client) MeterID() (string, error) {
+	// Discover meter ID if not provided
+	if c.meterID == "" {
+		if err := c.DiscoverMeterID(); err != nil {
+			return "", fmt.Errorf("failed to discover meter ID: %w", err)
+		}
+	}
+	return c.meterID, nil
 }
 
 // SetHostHeader overrides the Host header for all requests.
-// Use this for SSH tunnels or proxies when the default (smgw.local for localhost) doesn't work.
+// Use this for SSH tunnels or proxies when the default doesn't work.
 func (c *Client) SetHostHeader(host string) {
 	c.hostTransport.host = host
 }
