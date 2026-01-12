@@ -16,15 +16,16 @@ import (
 // Client is a CASA 1.1 smart meter gateway client.
 // It handles HTTP digest authentication, custom host headers, and meter data retrieval.
 type Client struct {
-	httpClient *http.Client
-	uri        string
-	meterID    string
+	httpClient    *http.Client
+	hostTransport *hostHeaderTransport
+	uri           string
+	meterID       string
 }
 
 // NewClientDiscover creates a new CASA client with full auto-discovery.
 // Discovers the gateway via mDNS and the meter ID from available contracts.
 func NewClientDiscover(user, password string) (*Client, error) {
-	return NewClient("", user, password, "", "")
+	return NewClient("", user, password, "")
 }
 
 // NewClient creates a new CASA client with HTTP digest authentication.
@@ -34,10 +35,10 @@ func NewClientDiscover(user, password string) (*Client, error) {
 //   - user: Username for digest authentication
 //   - password: Password for digest authentication
 //   - meterID: Meter ID (empty to auto-discover from available contracts)
-//   - hostHeader: Custom Host header for routing (empty to derive from URI)
 //
+// For SSH tunnels, use SetHostHeader("smgw.local") after creating the client.
 // Returns an error if credentials are missing or discovery/connection fails.
-func NewClient(uri, user, password, meterID, hostHeader string) (*Client, error) {
+func NewClient(uri, user, password, meterID string) (*Client, error) {
 	// Auto-discover gateway if URI is empty
 	if uri == "" {
 		discoveredURI, err := DiscoverGatewayURI()
@@ -52,16 +53,6 @@ func NewClient(uri, user, password, meterID, hostHeader string) (*Client, error)
 	}
 
 	uri = defaultScheme(uri, "https")
-	host := hostHeader
-
-	// If no host provided, try to derive from URI
-	if host == "" {
-		derived, err := parseURIHost(uri)
-		if err != nil {
-			return nil, fmt.Errorf("host required and could not be derived: %w", err)
-		}
-		host = derived
-	}
 
 	// Create HTTP client with custom transport for self-signed certs
 	customTransport := &http.Transport{
@@ -71,9 +62,10 @@ func NewClient(uri, user, password, meterID, hostHeader string) (*Client, error)
 		ForceAttemptHTTP2: false,
 	}
 
+	// Create host header transport (can be modified later via SetHostHeader)
 	hostTransport := &hostHeaderTransport{
 		base: customTransport,
-		host: host,
+		host: "", // empty = use default from request
 	}
 
 	// Add digest authentication
@@ -82,9 +74,10 @@ func NewClient(uri, user, password, meterID, hostHeader string) (*Client, error)
 	}
 
 	c := &Client{
-		httpClient: httpClient,
-		uri:        uri,
-		meterID:    meterID,
+		httpClient:    httpClient,
+		hostTransport: hostTransport,
+		uri:           uri,
+		meterID:       meterID,
 	}
 
 	// Discover meter ID if not provided
@@ -188,6 +181,12 @@ func (c *Client) GetMeterValues() (map[string]float64, error) {
 // This is set either explicitly during NewClient or discovered automatically.
 func (c *Client) MeterID() string {
 	return c.meterID
+}
+
+// SetHostHeader overrides the Host header for all requests.
+// Use this for SSH tunnels or proxies when the default (smgw.local for localhost) doesn't work.
+func (c *Client) SetHostHeader(host string) {
+	c.hostTransport.host = host
 }
 
 // getJSON makes a JSON API call and unmarshals the response

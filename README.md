@@ -53,51 +53,33 @@ values, err := client.GetMeterValues()
 **Manual configuration** (if discovery is not available):
 ```go
 client, err := emhcasa.NewClient(
-    "https://192.168.33.2",  // Explicit URI
+    "https://smgw.local",  // or IP address
     "admin",
     "password",
-    "",     // Still auto-discovers meter ID
+    "",  // auto-discover meter ID
+)
+```
+
+**SSH Tunneling**:
+
+When using SSH tunnels, set the Host header after creating the client:
+
+```go
+client, err := emhcasa.NewClient(
+    "https://localhost:443",
+    "admin",
+    "password",
     "",
 )
-```
-
-**SSH Tunneling and localhost forwarding**:
-
-When using SSH tunnels or port forwarding (e.g., gateway accessible via `localhost:8443` but needs routing to actual gateway IP), you can override the Host header:
-
-```go
-// Discover gateway address, but override Host header for SSH tunnel
-client, err := emhcasa.NewClient(
-    "https://localhost:8443",      // Local forwarded port
-    "admin",
-    "password",
-    "",                             // Auto-discover meter ID
-    "192.168.33.2",                 // Host header for gateway routing
-)
-```
-
-Or with full discovery + custom Host header:
-```go
-// Auto-discover gateway URI via mDNS
-discoveredURI, err := emhcasa.NewClientDiscoverGatewayURI()
 if err != nil {
     log.Fatal(err)
 }
 
-// Use discovered URI to derive Host header, but connect via tunnel
-client, err := emhcasa.NewClient(
-    "https://localhost:8443",      // SSH tunnel endpoint
-    "admin",
-    "password",
-    "",                             // Auto-discover meter ID
-    discoveredURI,                  // Use discovered address as Host header
-)
-```
+// Set Host header for gateway routing
+client.SetHostHeader("smgw.local")  // or "192.168.33.2"
 
-This is useful when:
-- Gateway is accessed through SSH port forwarding
-- Using reverse proxy or load balancer
-- Gateway requires specific Host header for routing
+values, err := client.GetMeterValues()
+```
 
 ## Quick Start
 
@@ -114,11 +96,10 @@ import (
 func main() {
 	// Create a client
 	client, err := emhcasa.NewClient(
-		"https://192.168.33.2",    // CASA gateway URI
-		"admin",                     // Username
-		"password",                  // Password
-		"",                          // Meter ID (empty to auto-discover)
-		"192.168.33.2",             // Host header (required for most CASA gateways)
+		"https://smgw.local",  // CASA gateway URI
+		"admin",               // Username
+		"password",            // Password
+		"",                    // Meter ID (empty to auto-discover)
 	)
 	if err != nil {
 		log.Fatal(err)

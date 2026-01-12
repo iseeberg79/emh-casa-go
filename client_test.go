@@ -201,7 +201,6 @@ func TestNewClient(t *testing.T) {
 		user      string
 		password  string
 		meterID   string
-		host      string
 		wantErr   bool
 		errSubstr string
 	}{
@@ -211,7 +210,6 @@ func TestNewClient(t *testing.T) {
 			user:      "admin",
 			password:  "pass",
 			meterID:   "123",
-			host:      "192.168.1.1",
 			wantErr:   true,
 			errSubstr: "failed to discover gateway",
 		},
@@ -221,7 +219,6 @@ func TestNewClient(t *testing.T) {
 			user:      "",
 			password:  "pass",
 			meterID:   "123",
-			host:      "192.168.1.1",
 			wantErr:   true,
 			errSubstr: "credentials are required",
 		},
@@ -231,7 +228,6 @@ func TestNewClient(t *testing.T) {
 			user:      "admin",
 			password:  "",
 			meterID:   "123",
-			host:      "192.168.1.1",
 			wantErr:   true,
 			errSubstr: "credentials are required",
 		},
@@ -239,7 +235,7 @@ func TestNewClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewClient(tt.uri, tt.user, tt.password, tt.meterID, tt.host)
+			_, err := NewClient(tt.uri, tt.user, tt.password, tt.meterID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewClient() error = %v, wantErr %v", err, tt.wantErr)
 				return
