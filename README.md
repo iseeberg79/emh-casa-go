@@ -255,6 +255,9 @@ This project is an independent, open-source library and is **not affiliated with
 This software is provided **“as is”**, without warranty of any kind, express or implied.  
 Use of this library is **at your own risk**.
 
+⚠️ **Note**: This library is pre-1.0.0.  
+Breaking API changes may occur between minor versions. See `CHANGELOG.md`.
+
 ---
 
 ## Regulatory Notice
