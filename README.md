@@ -48,12 +48,13 @@ values, err := client.GetMeterValues()
 - Ensure gateway is on the same network subnet
 - Verify gateway advertises "smgw.local" via mDNS (EMH CASA 1.1 does this by default)
 - Check that multicast DNS is enabled on your network interface
+- IGMP snooping could block mDNS. Check if IGMP snooping is disabled on the network switch or relevant VLAN. This does only applies to managed switches.
 - Some networks may block mDNS traffic - in this case, provide the URI manually
 
 **Manual configuration** (if discovery is not available):
 ```go
 client, err := emhcasa.NewClient(
-    "https://smgw.local",  // or IP address
+    "https://192.168.33.2",  // Gateway IP address
     "admin",
     "password",
     "",  // auto-discover meter ID
@@ -96,7 +97,7 @@ import (
 func main() {
 	// Create a client
 	client, err := emhcasa.NewClient(
-		"https://smgw.local",  // CASA gateway URI
+		"https://192.168.33.2",  // CASA gateway URI or leave empty for auto-discover
 		"admin",               // Username
 		"password",            // Password
 		"",                    // Meter ID (empty to auto-discover)
