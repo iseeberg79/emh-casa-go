@@ -78,7 +78,7 @@ func NewClient(uri, user, password, meterID string) (*Client, error) {
 		uri:           uri,
 		meterID:       meterID,
 	}
-	
+
 	if meterID == "" {
 		err := c.DiscoverMeterID()
 		if err != nil {
