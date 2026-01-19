@@ -111,6 +111,7 @@ func (c *Client) DiscoverMeterID() error {
 }
 
 // GetMeterValues fetches and parses current meter readings from the gateway.
+// If no meter ID is set, it will be automatically discovered from available contracts.
 //
 // Returns a map of OBIS codes to float64 values. OBIS codes use the format C.D.E
 // where common values include:
@@ -120,10 +121,12 @@ func (c *Client) DiscoverMeterID() error {
 //   - 31.7.0, 51.7.0, 71.7.0: Phase currents (A)
 //   - 32.7.0, 52.7.0, 72.7.0: Phase voltages (V)
 //
-// Returns an error if the gateway request fails or no valid values are found.
+// Returns an error if meter ID discovery fails, the gateway request fails, or no valid values are found.
 func (c *Client) GetMeterValues() (map[string]float64, error) {
 	if c.meterID == "" {
-		return nil, fmt.Errorf("meter ID not set")
+		if err := c.DiscoverMeterID(); err != nil {
+			return nil, fmt.Errorf("failed to discover meter ID: %w", err)
+		}
 	}
 
 	var reading MeterReading
