@@ -1,12 +1,12 @@
 # emh-casa-go
 
-A vendor-agnostic smart meter gateway library for Go with support for EMH CASA 1.1 and extensible to other vendors (Theben, PPC, etc.).
+A vendor-agnostic smart meter gateway library for Go with support for multiple SMGW vendors: **EMH CASA 1.1**, **PPC**, and **Theben Conexa**.
 
 This library provides a clean, unified interface for querying meter data from smart meter gateways, with standardized OBIS code handling, automatic discovery, and rich data structures.
 
 ## Features (v2.0.0)
 
-- **Vendor-agnostic Gateway interface**: Unified API for multiple SMGW vendors (EMH CASA, with Theben/PPC support planned)
+- **Vendor-agnostic Gateway interface**: Unified API for multiple SMGW vendors (EMH CASA 1.1, PPC, Theben Conexa)
 - **Standardized OBIS codes**: "16.7.0" (current power) works consistently across all vendors
 - **Rich data structures**: Information and Reading objects with timestamps, metadata, and quality indicators
 - **Gateway Auto-discovery**: Automatically discovers gateways via mDNS ("smgw.local")
@@ -156,6 +156,90 @@ func main() {
 }
 ```
 
+## Vendor-Specific Examples
+
+### PPC SMGW
+
+```go
+import (
+	"context"
+	"time"
+
+	smgwreader "github.com/iseeberg79/emh-casa-go"
+	"github.com/iseeberg79/emh-casa-go/ppc"
+	"github.com/iseeberg79/emh-casa-go/obis"
+)
+
+// Create PPC client
+client, err := ppc.NewClient("https://192.168.1.100", "admin", "password")
+if err != nil {
+	log.Fatal(err)
+}
+
+// Use Gateway interface
+var gw smgwreader.Gateway = client
+
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+
+// Fetch readings
+info, err := gw.GetReadings(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+
+// Access OBIS readings (PPC dynamically extracts all available OBIS codes)
+fmt.Printf("Power: %.2f %s\n", info.Readings[obis.PowerActive].Value, info.Readings[obis.PowerActive].Unit)
+fmt.Printf("Energy Import: %.2f %s\n", info.Readings[obis.EnergyImport].Value, info.Readings[obis.EnergyImport].Unit)
+```
+
+**PPC Notes:**
+- Uses HTML scraping with BeautifulSoup-like parsing
+- Self-signed certificates supported
+- Dynamically extracts all OBIS codes from device (including 16.7.0 if available)
+
+### Theben Conexa
+
+```go
+import (
+	"context"
+	"time"
+
+	smgwreader "github.com/iseeberg79/emh-casa-go"
+	"github.com/iseeberg79/emh-casa-go/theben"
+	"github.com/iseeberg79/emh-casa-go/obis"
+)
+
+// Create Theben client
+client, err := theben.NewClient("https://192.168.1.100", "admin", "password")
+if err != nil {
+	log.Fatal(err)
+}
+
+// Use Gateway interface
+var gw smgwreader.Gateway = client
+
+ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+defer cancel()
+
+// Fetch readings
+info, err := gw.GetReadings(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+
+// Access OBIS readings (Theben supports specific codes: 1.8.0, 2.8.0, 16.7.0)
+fmt.Printf("Power: %.2f %s\n", info.Readings[obis.PowerActive].Value, info.Readings[obis.PowerActive].Unit)
+fmt.Printf("Energy Import: %.2f %s\n", info.Readings[obis.EnergyImport].Value, info.Readings[obis.EnergyImport].Unit)
+fmt.Printf("Energy Export: %.2f %s\n", info.Readings[obis.EnergyExport].Value, info.Readings[obis.EnergyExport].Unit)
+```
+
+**Theben Notes:**
+- Uses JSON API
+- Self-signed certificates supported
+- OBIS 16.7.0 (current power) newly added
+- Supports OBIS codes: 1.8.0, 2.8.0, 16.7.0, 31.7.0, 32.7.0, 36.7.0, 51.7.0, 52.7.0, 56.7.0, 71.7.0, 72.7.0, 76.7.0, 14.7.0
+
 ## Migration Guide (v1 → v2.0.0)
 
 ### Breaking Changes
@@ -219,16 +303,26 @@ meter, err := gw.DiscoverMeterID(ctx)
 
 ```go
 // MeterProvider - for explicit meter ID management
+// Supported by: EMH CASA, PPC, Theben (all vendors)
 if mp, ok := gw.(smgwreader.MeterProvider); ok {
-	mp.SetMeterID("ABC123")
-	id := mp.MeterID()
+	mp.SetMeterID("ABC123")  // Set meter ID explicitly
+	id := mp.MeterID()       // Get current meter ID
 }
 
 // HostConfigurer - for custom Host headers (SSH tunnels)
+// Supported by: EMH CASA only
 if hc, ok := gw.(smgwreader.HostConfigurer); ok {
 	hc.SetHostHeader("smgw.local")
 }
 ```
+
+**Interface Support Matrix:**
+
+| Interface | EMH CASA | PPC | Theben |
+|-----------|----------|-----|--------|
+| `Gateway` (required) | ✅ | ✅ | ✅ |
+| `MeterProvider` | ✅ | ✅ | ✅ |
+| `HostConfigurer` | ✅ | ❌ | ❌ |
 
 ### Data Structures
 

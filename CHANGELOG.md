@@ -54,10 +54,23 @@ info, _ := client.GetReadings(ctx)
 power := info.Readings[obis.PowerActive].Value
 ```
 
+### PPC and Theben Support Added
+
+**NEW** - PPC SMGW implementation (`ppc/` package):
+- HTML scraping with HTTP Digest Auth
+- Dynamic OBIS code extraction from meter data table
+- Supports all OBIS codes reported by the device (including 16.7.0 for current power)
+- Self-signed certificate support
+
+**NEW** - Theben Conexa implementation (`theben/` package):
+- JSON API with HTTP Digest Auth
+- OBIS 16.7.0 (current active power) newly added
+- Full OBIS support: 1.8.0, 2.8.0, 16.7.0, 31.7.0, 32.7.0, 36.7.0, 51.7.0, 52.7.0, 56.7.0, 71.7.0, 72.7.0, 76.7.0, 14.7.0
+- Hex to OBIS code conversion (e.g., `0100100700ff` → `1-0:16.7.0`)
+- Self-signed certificate support
+
 ### Future Roadmap
-- Theben gateway support (vendor/theben/)
-- PPC gateway support (vendor/ppc/)
-- Prometheus metrics exporter
+- Additional vendor support (community contributions welcome)
 
 ---
 
