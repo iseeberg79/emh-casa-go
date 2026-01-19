@@ -1,6 +1,7 @@
 package emhcasa
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/tobima/smgw-discover-go/smgw"
@@ -10,8 +11,11 @@ import (
 // Returns a fully-formed URI (e.g., "https://[fe80::dead:beef%eth0]") ready for use.
 // Uses the smgw-discover-go module which implements a 300ms timeout.
 // Returns an error if no gateway is found.
-func DiscoverGatewayURI() (string, error) {
-	// Use existing smgw-discover-go module
+// The context parameter is accepted for interface consistency but the underlying
+// smgw.Discover() doesn't support context cancellation.
+func DiscoverGatewayURI(ctx context.Context) (string, error) {
+	// Note: smgw.Discover() doesn't support context cancellation, but we accept it
+	// for interface consistency with the Gateway interface
 	host, err := smgw.Discover()
 	if err != nil {
 		return "", fmt.Errorf("failed to discover gateway: %w", err)

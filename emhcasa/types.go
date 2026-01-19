@@ -1,27 +1,3 @@
-// Package emhcasa provides a client library for EMH CASA 1.1 Smart Meter Gateways.
-//
-// This library handles HTTP digest authentication, OBIS value conversion, and
-// automatic meter ID discovery for CASA 1.1 smart meter gateways.
-//
-// Basic usage:
-//
-//	client, err := emhcasa.NewClient(
-//		"https://192.168.33.2",
-//		"admin",
-//		"password",
-//		"",                  // auto-discover meter ID
-//		"192.168.33.2",      // host header
-//	)
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//
-//	values, err := client.GetMeterValues()
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//
-//	power := values["16.7.0"] // OBIS 16.7.0 = current power in W
 package emhcasa
 
 // DerivedContract represents a metering contract from the CASA gateway.

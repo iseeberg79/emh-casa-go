@@ -1,18 +1,21 @@
 # emh-casa-go
 
-A Go client library for EMH CASA 1.1 Smart Meter Gateways.
+A vendor-agnostic smart meter gateway library for Go with support for EMH CASA 1.1 and extensible to other vendors (Theben, PPC, etc.).
 
-This library provides a clean, reusable interface for querying meter data from EMH CASA 1.1 smart meter gateways, handling HTTP digest authentication, custom host headers, and OBIS value parsing.
+This library provides a clean, unified interface for querying meter data from smart meter gateways, with standardized OBIS code handling, automatic discovery, and rich data structures.
 
-## Features
+## Features (v2.0.0)
 
-- **Gateway Auto-discovery**: Automatically discovers CASA gateways via mDNS ("smgw.local")
-- **HTTP Digest Authentication**: Secure communication with CASA gateways
+- **Vendor-agnostic Gateway interface**: Unified API for multiple SMGW vendors (EMH CASA, with Theben/PPC support planned)
+- **Standardized OBIS codes**: "16.7.0" (current power) works consistently across all vendors
+- **Rich data structures**: Information and Reading objects with timestamps, metadata, and quality indicators
+- **Gateway Auto-discovery**: Automatically discovers gateways via mDNS ("smgw.local")
 - **Meter ID Auto-discovery**: Automatically discovers meter IDs from available contracts
-- **OBIS Conversion**: Converts CASA logical names to standard OBIS C.D.E format
-- **Unit Handling**: Automatic scaling and unit conversion (W, Wh, A, V, Hz)
-- **Self-signed Certificates**: Works with typical CASA gateway configurations
-- **HTTP/1.1 Support**: Enforces HTTP/1.1 (required for CASA gateways)
+- **HTTP Digest Authentication**: Secure communication with gateways
+- **Unit Handling**: Automatic scaling and unit conversion (W, kWh, A, V, Hz)
+- **Self-signed Certificates**: Works with typical gateway configurations
+- **Context support**: Full context support for cancellation and timeouts
+- **Backward compatible**: Optional GetMeterValues() method for v1 compatibility
 
 ## Installation
 
@@ -82,78 +85,198 @@ client.SetHostHeader("smgw.local")  // or "192.168.33.2"
 values, err := client.GetMeterValues()
 ```
 
-## Quick Start
+## Quick Start (v2.0.0)
 
 ```go
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"time"
 
-	"github.com/iseeberg79/emh-casa-go"
+	smgwreader "github.com/iseeberg79/emh-casa-go"
+	"github.com/iseeberg79/emh-casa-go/emhcasa"
+	"github.com/iseeberg79/emh-casa-go/obis"
 )
 
 func main() {
-	// Create a client
+	// Create EMH CASA client
 	client, err := emhcasa.NewClient(
-		"https://192.168.33.2",  // CASA gateway URI or leave empty for auto-discover
-		"admin",               // Username
-		"password",            // Password
-		"",                    // Meter ID (empty to auto-discover)
+		"https://192.168.33.2",  // Gateway URI or empty for auto-discover
+		"admin",                 // Username
+		"password",              // Password
+		"",                      // Meter ID (empty to auto-discover)
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Fetch meter values
-	values, err := client.GetMeterValues()
+	// Use Gateway interface for vendor-agnostic access
+	var gw smgwreader.Gateway = client
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Fetch readings with rich metadata
+	info, err := gw.GetReadings(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Use OBIS codes to access specific values
-	if power, ok := values["16.7.0"]; ok {
-		fmt.Printf("Current Power: %.2f W\n", power)
+	// Access data using OBIS constants
+	fmt.Printf("Gateway: %s (%s)\n", info.Name, info.Manufacturer)
+	fmt.Printf("Last Updated: %s\n", info.LastUpdate.Format(time.RFC3339))
+
+	// Current power (OBIS 16.7.0)
+	if reading, ok := info.Readings[obis.PowerActive]; ok {
+		fmt.Printf("Current Power: %.2f %s\n", reading.Value, reading.Unit)
 	}
 
-	if energy, ok := values["1.8.0"]; ok {
-		fmt.Printf("Total Energy: %.2f kWh\n", energy)
+	// Total energy (OBIS 1.8.0)
+	if reading, ok := info.Readings[obis.EnergyImport]; ok {
+		fmt.Printf("Total Energy: %.2f %s\n", reading.Value, reading.Unit)
 	}
 
 	// Phase currents
-	fmt.Printf("Phase 1 Current: %.2f A\n", values["31.7.0"])
-	fmt.Printf("Phase 2 Current: %.2f A\n", values["51.7.0"])
-	fmt.Printf("Phase 3 Current: %.2f A\n", values["71.7.0"])
+	for phase, obisCode := range map[int]string{1: obis.CurrentL1, 2: obis.CurrentL2, 3: obis.CurrentL3} {
+		if reading, ok := info.Readings[obisCode]; ok {
+			fmt.Printf("Phase %d Current: %.2f %s\n", phase, reading.Value, reading.Unit)
+		}
+	}
 
 	// Phase voltages
-	fmt.Printf("Phase 1 Voltage: %.2f V\n", values["32.7.0"])
-	fmt.Printf("Phase 2 Voltage: %.2f V\n", values["52.7.0"])
-	fmt.Printf("Phase 3 Voltage: %.2f V\n", values["72.7.0"])
+	for phase, obisCode := range map[int]string{1: obis.VoltageL1, 2: obis.VoltageL2, 3: obis.VoltageL3} {
+		if reading, ok := info.Readings[obisCode]; ok {
+			fmt.Printf("Phase %d Voltage: %.2f %s\n", phase, reading.Value, reading.Unit)
+		}
+	}
 }
 ```
 
-## API Overview
+## Migration Guide (v1 → v2.0.0)
 
-### Client
+### Breaking Changes
+
+v2.0.0 is a **major version** with breaking API changes. v1.x code will not work with v2.0.0.
+
+| v1.x | v2.0.0 | Notes |
+|------|--------|-------|
+| `GetMeterValues()` | `GetReadings(ctx)` | Returns `*Information` instead of `map[string]float64`. `GetMeterValues()` is still available for backward compatibility. |
+| `DiscoverMeterID()` | `DiscoverMeterID(ctx)` | Now requires context parameter and returns `(string, error)` |
+| `MeterID()` | `MeterID()` or `MeterProvider.SetMeterID()` | Behavior unchanged, optional. Use MeterProvider interface for vendor-agnostic access. |
+| `SetHostHeader()` | `HostConfigurer.SetHostHeader()` | No change, available via optional interface |
+| Map access: `values["16.7.0"]` | `info.Readings[obis.PowerActive]` | Use OBIS constants from `obis` package for standardized access |
+| No unit info | `reading.Unit` | Readings now include unit type and enum values |
+| No timestamps | `reading.Timestamp` | Readings include capture timestamp |
+
+### Quick Migration Example
+
+**v1.x:**
+```go
+client, _ := emhcasa.NewClient(uri, user, pass, "")
+values, _ := client.GetMeterValues()
+power := values["16.7.0"]
+```
+
+**v2.0.0:**
+```go
+client, _ := emhcasa.NewClient(uri, user, pass, "")
+ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+defer cancel()
+
+info, _ := client.GetReadings(ctx)
+power := info.Readings[obis.PowerActive].Value
+```
+
+## API Overview (v2.0.0)
+
+### Gateway Interface (recommended)
 
 ```go
-// Full auto-discovery (recommended)
-client, err := emhcasa.NewClientDiscover(user, password)
-
-// Or with manual configuration
-client, err := emhcasa.NewClient(
-	uri,        // Gateway URI (empty for mDNS discovery)
-	user,       // Username for digest auth
-	password,   // Password for digest auth
-	meterID,    // Meter ID (empty to auto-discover)
+import (
+	"context"
+	smgwreader "github.com/iseeberg79/emh-casa-go"  // core interfaces
+	"github.com/iseeberg79/emh-casa-go/emhcasa"     // implementation
 )
 
-// Fetch all meter values (returns OBIS code -> value map)
-values, err := client.GetMeterValues()
+// Create a gateway implementation
+var gw smgwreader.Gateway
+client, err := emhcasa.NewClient(uri, user, pass, meterID)
+gw = client
 
-// Get the configured meter ID
-meterID, err := client.MeterID()
+// Fetch readings (vendor-agnostic)
+ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+defer cancel()
+
+info, err := gw.GetReadings(ctx)
+meter, err := gw.DiscoverMeterID(ctx)
+```
+
+### Optional Interfaces
+
+```go
+// MeterProvider - for explicit meter ID management
+if mp, ok := gw.(smgwreader.MeterProvider); ok {
+	mp.SetMeterID("ABC123")
+	id := mp.MeterID()
+}
+
+// HostConfigurer - for custom Host headers (SSH tunnels)
+if hc, ok := gw.(smgwreader.HostConfigurer); ok {
+	hc.SetHostHeader("smgw.local")
+}
+```
+
+### Data Structures
+
+```go
+// Information - gateway/meter information with readings
+type Information struct {
+	Name            string              // Gateway/meter name
+	Model           string              // Device model
+	Manufacturer    string              // Manufacturer
+	FirmwareVersion string              // Firmware version
+	LastUpdate      time.Time           // Data retrieval timestamp
+	Readings        map[string]Reading  // OBIS code → Reading
+}
+
+// Reading - single meter reading with metadata
+type Reading struct {
+	Value     float64   // Measured value (scaled)
+	Unit      Unit      // Unit type (W, A, V, Hz, kWh)
+	Timestamp time.Time // When the reading was captured
+	OBIS      string    // OBIS code (e.g., "16.7.0")
+	Quality   Quality   // Data quality indicator
+}
+
+// (These types are in the smgwreader package)
+```
+
+### OBIS Constants
+
+```go
+import "github.com/iseeberg79/emh-casa-go/obis"
+
+// Use standardized constants instead of magic strings
+power := info.Readings[obis.PowerActive].Value     // 16.7.0
+energy := info.Readings[obis.EnergyImport].Value   // 1.8.0
+voltage := info.Readings[obis.VoltageL1].Value     // 32.7.0
+
+// Get human-readable descriptions
+desc := obis.Description(obis.PowerActive)  // "Current active power (W)"
+```
+
+### Backward Compatibility
+
+For v1.x compatibility, the old `GetMeterValues()` method is still available:
+
+```go
+// Old v1.x style still works (but not recommended)
+client, _ := emhcasa.NewClient(uri, user, pass, "")
+values, _ := client.GetMeterValues()  // Returns map[string]float64
 ```
 
 ## Common OBIS Codes
