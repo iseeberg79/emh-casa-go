@@ -33,6 +33,9 @@ if err != nil {
     log.Fatal(err)
 }
 
+// auto-discover meter ID
+client.DiscoverMeterID()  
+
 // Query meter values
 values, err := client.GetMeterValues()
 ```

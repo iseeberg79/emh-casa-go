@@ -79,13 +79,6 @@ func NewClient(uri, user, password, meterID string) (*Client, error) {
 		meterID:       meterID,
 	}
 
-	if meterID == "" {
-		err := c.DiscoverMeterID()
-		if err != nil {
-			return nil, fmt.Errorf("failed to discover meter ID: %w", err)
-		}
-	}
-
 	return c, nil
 }
 
